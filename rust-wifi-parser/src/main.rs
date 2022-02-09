@@ -7,7 +7,6 @@ use pcap_file::pcap::{Packet, PacketHeader, PcapReader};
 use reqwest::blocking::{Client, Response};
 use reqwest::Error;
 use serde::Serialize;
-use std::os::raw;
 use std::path::Path;
 use std::{env, fs::File, process::exit};
 
@@ -92,17 +91,22 @@ fn main() {
             if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.beacon_id
             {
-                management_frame = Some(Box::new(BeaconFrame::new(raw_packet)));
+                management_frame = Some(Box::new(BeaconFrame::new(&raw_packet)));
             } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.auth_frame_id
             {
                 management_frame = Some(Box::new(AuthenicationFrame::new(&raw_packet)));
+            } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
+                == MANAGEMENT_FRAME_CONSTANTS.association_request_id
+            {
+                management_frame = Some(Box::new(AssociationRequestFrame::new(&raw_packet)));
+            } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
+                == MANAGEMENT_FRAME_CONSTANTS.response_identity_id
+            {
+                management_frame = Some(Box::new(ResponseIdentityFrame::new(&raw_packet)));
             }
 
-            if management_frame.is_some() {
-                let unwrapped_management_frame: Box<dyn ManagementFrame>;
-                unwrapped_management_frame = management_frame.unwrap();
-
+            if let Some(unwrapped_management_frame) = management_frame {
                 unwrapped_management_frame.display_packet_info();
 
                 if !greylog_url.is_empty() {
@@ -165,7 +169,7 @@ impl Packets {
             if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.beacon_id
             {
-                BeaconFrame::new((*raw_packet).clone()).display_packet_info();
+                BeaconFrame::new(raw_packet).display_packet_info();
             } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.auth_frame_id
             {
@@ -183,7 +187,7 @@ trait ManagementFrame {
 #[derive(Serialize)]
 struct ResponseIdentityFrame {
     #[serde(skip_serializing)]
-    raw_packet: Box<RawPacket>,
+    raw_packet: RawPacket,
 }
 
 impl ManagementFrame for ResponseIdentityFrame {
@@ -198,9 +202,9 @@ impl ManagementFrame for ResponseIdentityFrame {
 }
 
 impl ResponseIdentityFrame {
-    fn new(raw_packet: RawPacket) -> ResponseIdentityFrame {
+    fn new(raw_packet: &RawPacket) -> ResponseIdentityFrame {
         ResponseIdentityFrame {
-            raw_packet: Box::<RawPacket>::new(raw_packet),
+            raw_packet: raw_packet.to_owned(),
         }
     }
 }
@@ -208,7 +212,7 @@ impl ResponseIdentityFrame {
 #[derive(Serialize)]
 struct AssociationRequestFrame {
     #[serde(skip_serializing)]
-    raw_packet: Box<RawPacket>,
+    raw_packet: RawPacket,
 }
 
 impl ManagementFrame for AssociationRequestFrame {
@@ -223,20 +227,20 @@ impl ManagementFrame for AssociationRequestFrame {
 }
 
 impl AssociationRequestFrame {
-    fn new(raw_packet: RawPacket) -> AssociationRequestFrame {
+    fn new(raw_packet: &RawPacket) -> AssociationRequestFrame {
         AssociationRequestFrame {
-            raw_packet: Box::<RawPacket>::new(raw_packet),
+            raw_packet: raw_packet.to_owned(),
         }
     }
 }
 
 #[derive(Serialize)]
-struct AuthenicationFrame<'mf> {
+struct AuthenicationFrame {
     #[serde(skip_serializing)]
-    raw_packet: &'mf RawPacket,
+    raw_packet: RawPacket,
 }
 
-impl ManagementFrame for AuthenicationFrame<'_> {
+impl ManagementFrame for AuthenicationFrame {
     fn get_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
@@ -247,9 +251,11 @@ impl ManagementFrame for AuthenicationFrame<'_> {
     }
 }
 
-impl AuthenicationFrame<'_> {
+impl AuthenicationFrame {
     fn new(raw_packet: &RawPacket) -> AuthenicationFrame {
-        AuthenicationFrame { raw_packet }
+        AuthenicationFrame {
+            raw_packet: raw_packet.to_owned(),
+        }
     }
 }
 
@@ -287,17 +293,17 @@ impl ManagementFrame for BeaconFrame {
 }
 
 impl BeaconFrame {
-    fn new(raw_packet: RawPacket) -> Self {
+    fn new(raw_packet: &RawPacket) -> Self {
         BeaconFrame {
-            raw_packet,
-            essid: BeaconFrame::get_essid(&raw_packet),
-            bssid: BeaconFrame::get_bssid(&raw_packet),
-            beacon_interval: BeaconFrame::get_beacon_interval(&raw_packet),
-            transmit_power: BeaconFrame::get_transmit_power(&raw_packet),
-            antenna_signal: BeaconFrame::get_antenna_signal(&raw_packet),
-            country_code: BeaconFrame::get_country_code(&raw_packet),
-            current_channel: BeaconFrame::get_current_channel(&raw_packet),
-            is_private_network: BeaconFrame::is_private_network(&raw_packet),
+            raw_packet: raw_packet.to_owned(),
+            essid: BeaconFrame::get_essid(raw_packet),
+            bssid: BeaconFrame::get_bssid(raw_packet),
+            beacon_interval: BeaconFrame::get_beacon_interval(raw_packet),
+            transmit_power: BeaconFrame::get_transmit_power(raw_packet),
+            antenna_signal: BeaconFrame::get_antenna_signal(raw_packet),
+            country_code: BeaconFrame::get_country_code(raw_packet),
+            current_channel: BeaconFrame::get_current_channel(raw_packet),
+            is_private_network: BeaconFrame::is_private_network(raw_packet),
         }
     }
     fn get_essid(raw_packet: &RawPacket) -> String {
@@ -384,7 +390,7 @@ impl BeaconFrame {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct RawPacket {
     packet_header: PacketHeader,
     packet_data: Vec<u8>,
