@@ -92,7 +92,7 @@ fn main() {
             if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.beacon_id
             {
-                management_frame = Some(Box::new(BeaconFrame::new(&raw_packet)));
+                management_frame = Some(Box::new(BeaconFrame::new(raw_packet)));
             } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.auth_frame_id
             {
@@ -165,7 +165,7 @@ impl Packets {
             if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.beacon_id
             {
-                BeaconFrame::new(raw_packet).display_packet_info();
+                BeaconFrame::new((*raw_packet).clone()).display_packet_info();
             } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.auth_frame_id
             {
@@ -254,9 +254,9 @@ impl AuthenicationFrame<'_> {
 }
 
 #[derive(Serialize)]
-struct BeaconFrame<'mf> {
+struct BeaconFrame {
     #[serde(skip_serializing)]
-    raw_packet: &'mf RawPacket,
+    raw_packet: RawPacket,
     essid: String,
     bssid: String,
     beacon_interval: String,
@@ -267,7 +267,7 @@ struct BeaconFrame<'mf> {
     is_private_network: bool,
 }
 
-impl ManagementFrame for BeaconFrame<'_> {
+impl ManagementFrame for BeaconFrame {
     fn get_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
@@ -286,10 +286,10 @@ impl ManagementFrame for BeaconFrame<'_> {
     }
 }
 
-impl BeaconFrame<'_> {
-    fn new(raw_packet: &RawPacket) -> BeaconFrame {
+impl BeaconFrame {
+    fn new(raw_packet: RawPacket) -> Self {
         BeaconFrame {
-            raw_packet: &raw_packet,
+            raw_packet,
             essid: BeaconFrame::get_essid(&raw_packet),
             bssid: BeaconFrame::get_bssid(&raw_packet),
             beacon_interval: BeaconFrame::get_beacon_interval(&raw_packet),
@@ -384,6 +384,7 @@ impl BeaconFrame<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct RawPacket {
     packet_header: PacketHeader,
     packet_data: Vec<u8>,
@@ -419,14 +420,14 @@ impl RawPacket {
     }
 
     // just create a new packet based on the byte array supplied
-    fn new(packet: Packet) -> RawPacket {
+    fn new(packet: Packet) -> Self {
         RawPacket {
             packet_header: packet.header,
             packet_data: packet.data.to_vec(),
         }
     }
 
-    fn load_packet(packet: pcap::Packet) -> RawPacket {
+    fn load_packet(packet: pcap::Packet) -> Self {
         let packet_header = PacketHeader::new(
             packet.header.ts.tv_sec as u32,
             packet.header.ts.tv_usec as u32,
