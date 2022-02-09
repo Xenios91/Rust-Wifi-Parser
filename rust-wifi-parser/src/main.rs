@@ -7,6 +7,7 @@ use pcap_file::pcap::{Packet, PacketHeader, PcapReader};
 use reqwest::blocking::{Client, Response};
 use reqwest::Error;
 use serde::Serialize;
+use std::os::raw;
 use std::path::Path;
 use std::{env, fs::File, process::exit};
 
@@ -14,12 +15,16 @@ struct ManagementFrameInfo {
     management_frame_index: usize,
     beacon_id: u8,
     auth_frame_id: u8,
+    association_request_id: u8,
+    response_identity_id: u8,
 }
 
 static MANAGEMENT_FRAME_CONSTANTS: ManagementFrameInfo = ManagementFrameInfo {
     management_frame_index: 18,
     beacon_id: 0x80,
     auth_frame_id: 0x000b,
+    association_request_id: 0x0000,
+    response_identity_id: 0x0028,
 };
 
 fn main() {
@@ -81,20 +86,28 @@ fn main() {
             .unwrap();
 
         while let Ok(packet) = cap.next() {
-            let raw_packet = RawPacket::load_packet(packet);
+            let raw_packet: RawPacket = RawPacket::load_packet(packet);
+            let mut management_frame: Option<Box<dyn ManagementFrame>> = None;
+
             if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.beacon_id
             {
-                let beacon_frame = BeaconFrame::new(&raw_packet);
-                beacon_frame.display_packet_info();
-
-                if !greylog_url.is_empty() {
-                    send_management_frame_to_log(greylog_url, &beacon_frame);
-                }
+                management_frame = Some(Box::new(BeaconFrame::new(&raw_packet)));
             } else if raw_packet.packet_data[MANAGEMENT_FRAME_CONSTANTS.management_frame_index]
                 == MANAGEMENT_FRAME_CONSTANTS.auth_frame_id
             {
-                //to do
+                management_frame = Some(Box::new(AuthenicationFrame::new(&raw_packet)));
+            }
+
+            if management_frame.is_some() {
+                let unwrapped_management_frame: Box<dyn ManagementFrame>;
+                unwrapped_management_frame = management_frame.unwrap();
+
+                unwrapped_management_frame.display_packet_info();
+
+                if !greylog_url.is_empty() {
+                    send_management_frame_to_log(unwrapped_management_frame, greylog_url);
+                }
             }
         }
     } else if args.len() == 3 && args[1] == "--pcap" {
@@ -164,6 +177,80 @@ impl Packets {
 
 trait ManagementFrame {
     fn get_json(&self) -> String;
+    fn display_packet_info(&self);
+}
+
+#[derive(Serialize)]
+struct ResponseIdentityFrame {
+    #[serde(skip_serializing)]
+    raw_packet: Box<RawPacket>,
+}
+
+impl ManagementFrame for ResponseIdentityFrame {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("\n");
+    }
+}
+
+impl ResponseIdentityFrame {
+    fn new(raw_packet: RawPacket) -> ResponseIdentityFrame {
+        ResponseIdentityFrame {
+            raw_packet: Box::<RawPacket>::new(raw_packet),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct AssociationRequestFrame {
+    #[serde(skip_serializing)]
+    raw_packet: Box<RawPacket>,
+}
+
+impl ManagementFrame for AssociationRequestFrame {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("\n");
+    }
+}
+
+impl AssociationRequestFrame {
+    fn new(raw_packet: RawPacket) -> AssociationRequestFrame {
+        AssociationRequestFrame {
+            raw_packet: Box::<RawPacket>::new(raw_packet),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct AuthenicationFrame<'mf> {
+    #[serde(skip_serializing)]
+    raw_packet: &'mf RawPacket,
+}
+
+impl ManagementFrame for AuthenicationFrame<'_> {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("\n");
+    }
+}
+
+impl AuthenicationFrame<'_> {
+    fn new(raw_packet: &RawPacket) -> AuthenicationFrame {
+        AuthenicationFrame { raw_packet }
+    }
 }
 
 #[derive(Serialize)]
@@ -184,20 +271,33 @@ impl ManagementFrame for BeaconFrame<'_> {
     fn get_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("ESSID: {}", self.essid);
+        println!("BSSID: {}", self.bssid);
+        println!("Beacon Interval TU: {}", self.beacon_interval);
+        println!("Current Channel: {}", self.current_channel);
+        println!("Current Country Code: {}", self.country_code);
+        println!("Transmit Power: {}", self.transmit_power);
+        println!("Antenna Signal: -{} dBm", self.antenna_signal);
+        println!("Privacy is set: {}", self.is_private_network);
+        println!("\n");
+    }
 }
 
 impl BeaconFrame<'_> {
     fn new(raw_packet: &RawPacket) -> BeaconFrame {
         BeaconFrame {
-            raw_packet,
-            essid: BeaconFrame::get_essid(raw_packet),
-            bssid: BeaconFrame::get_bssid(raw_packet),
-            beacon_interval: BeaconFrame::get_beacon_interval(raw_packet),
-            transmit_power: BeaconFrame::get_transmit_power(raw_packet),
-            antenna_signal: BeaconFrame::get_antenna_signal(raw_packet),
-            country_code: BeaconFrame::get_country_code(raw_packet),
-            current_channel: BeaconFrame::get_current_channel(raw_packet),
-            is_private_network: BeaconFrame::is_private_network(raw_packet),
+            raw_packet: &raw_packet,
+            essid: BeaconFrame::get_essid(&raw_packet),
+            bssid: BeaconFrame::get_bssid(&raw_packet),
+            beacon_interval: BeaconFrame::get_beacon_interval(&raw_packet),
+            transmit_power: BeaconFrame::get_transmit_power(&raw_packet),
+            antenna_signal: BeaconFrame::get_antenna_signal(&raw_packet),
+            country_code: BeaconFrame::get_country_code(&raw_packet),
+            current_channel: BeaconFrame::get_current_channel(&raw_packet),
+            is_private_network: BeaconFrame::is_private_network(&raw_packet),
         }
     }
     fn get_essid(raw_packet: &RawPacket) -> String {
@@ -282,19 +382,6 @@ impl BeaconFrame<'_> {
     fn is_private_network(raw_packet: &RawPacket) -> bool {
         (raw_packet.packet_data[52] & 0x10) == 0x10
     }
-
-    fn display_packet_info(&self) {
-        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
-        println!("ESSID: {}", self.essid);
-        println!("BSSID: {}", self.bssid);
-        println!("Beacon Interval TU: {}", self.beacon_interval);
-        println!("Current Channel: {}", self.current_channel);
-        println!("Current Country Code: {}", self.country_code);
-        println!("Transmit Power: {}", self.transmit_power);
-        println!("Antenna Signal: -{} dBm", self.antenna_signal);
-        println!("Privacy is set: {}", self.is_private_network);
-        println!("\n");
-    }
 }
 
 struct RawPacket {
@@ -355,8 +442,8 @@ impl RawPacket {
 
 // converts the management frame into a json and sends it to the provided url.
 // if an error occurs we print it to stdout.
-fn send_management_frame_to_log(greylog_url: &str, management_frame_data: &dyn ManagementFrame) {
-    let json: String = management_frame_data.get_json();
+fn send_management_frame_to_log(management_frame: Box<dyn ManagementFrame>, greylog_url: &str) {
+    let json: String = management_frame.get_json();
     let client: Client = reqwest::blocking::Client::new();
     let result: Result<Response, Error> = client.post(greylog_url).json(&json).send();
     if result.is_err() {
