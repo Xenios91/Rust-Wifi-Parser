@@ -103,7 +103,7 @@ fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFr
 
     // check for hex value indicating management frame type
     if raw_packet.packet_data[18] == 0x80 {
-        management_frame = Some(Box::new(BeaconFrame::new(raw_packet)));
+        management_frame = Some(Box::new(BeaconProbeFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0xb0 {
         management_frame = Some(Box::new(AuthenticationFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0x0 {
@@ -409,12 +409,12 @@ impl AuthenticationFrame {
 }
 
 #[derive(Serialize)]
-struct BeaconFrame {
+struct BeaconProbeFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
 }
 
-impl ManagementFrame for BeaconFrame {
+impl ManagementFrame for BeaconProbeFrame {
     fn get_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
@@ -471,9 +471,9 @@ impl ManagementFrame for BeaconFrame {
     }
 }
 
-impl BeaconFrame {
+impl BeaconProbeFrame {
     fn new(raw_packet: &RawPacket) -> Self {
-        BeaconFrame {
+        BeaconProbeFrame {
             raw_packet: raw_packet.to_owned(),
         }
     }
