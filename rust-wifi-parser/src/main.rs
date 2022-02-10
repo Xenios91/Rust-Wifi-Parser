@@ -550,11 +550,6 @@ impl BeaconProbeFrame {
         String::from("No transmit power defined")
     }
 
-    // we get the byte that indicates atenna signal and get the twos comp
-    fn get_antenna_signal(&self) -> String {
-        self.raw_packet.packet_data[18].wrapping_neg().to_string()
-    }
-
     // we check to see if the privacy bit is set
     fn is_private_network(&self) -> bool {
         (self.raw_packet.packet_data[52] & 0x10) == 0x10
