@@ -106,10 +106,14 @@ fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFr
         management_frame = Some(Box::new(BeaconProbeFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0xb0 {
         management_frame = Some(Box::new(AuthenticationFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0xc0 {
+        management_frame = Some(Box::new(DeauthenticationFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0x0 {
         management_frame = Some(Box::new(AssociationRequestFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0x10 {
         management_frame = Some(Box::new(AssociationResponseFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0xa0 {
+        management_frame = Some(Box::new(DisassociationFrame::new(raw_packet)));
     }
     management_frame
 }
@@ -210,7 +214,7 @@ impl ManagementFrame for AssociationResponseFrame {
 }
 
 impl AssociationResponseFrame {
-    fn new(raw_packet: &RawPacket) -> AssociationResponseFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
         AssociationResponseFrame {
             raw_packet: raw_packet.to_owned(),
         }
@@ -302,7 +306,7 @@ impl ManagementFrame for AssociationRequestFrame {
 }
 
 impl AssociationRequestFrame {
-    fn new(raw_packet: &RawPacket) -> AssociationRequestFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
         AssociationRequestFrame {
             raw_packet: raw_packet.to_owned(),
         }
@@ -377,8 +381,158 @@ impl ManagementFrame for AuthenticationFrame {
 }
 
 impl AuthenticationFrame {
-    fn new(raw_packet: &RawPacket) -> AuthenticationFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
         AuthenticationFrame {
+            raw_packet: raw_packet.to_owned(),
+        }
+    }
+
+    fn get_destination_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[22..27];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+
+    fn get_source_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[28..33];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+}
+
+#[derive(Serialize)]
+struct DeauthenticationFrame {
+    #[serde(skip_serializing)]
+    raw_packet: RawPacket,
+}
+
+impl ManagementFrame for DeauthenticationFrame {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn get_antenna_signal(&self) -> String {
+        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+    }
+
+    fn get_essid(&self) -> String {
+        String::from("NOT PROVIDED")
+    }
+
+    fn get_bssid(&self) -> String {
+        // get the bytes at offset 34 to 39 which are the bssid bytes
+        let bssid: &[u8] = &self.raw_packet.packet_data[34..39];
+        let mut bssid_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in bssid.iter().enumerate() {
+            bssid_vec.push(format!("{:02X}", value));
+            if counter != bssid.len() - 1 {
+                bssid_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(bssid_vec.into_iter())
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("Antenna Signal: -{} dBm", self.get_antenna_signal());
+        println!("ESSID: {}", self.get_essid());
+        println!("BSSID: {}", self.get_bssid());
+        println!("Source Address: {}", self.get_source_address());
+        println!("Destination Address: {}", self.get_destination_address());
+        println!("\n");
+    }
+}
+
+impl DeauthenticationFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
+        DeauthenticationFrame {
+            raw_packet: raw_packet.to_owned(),
+        }
+    }
+
+    fn get_destination_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[22..27];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+
+    fn get_source_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[28..33];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+}
+
+#[derive(Serialize)]
+struct DisassociationFrame {
+    #[serde(skip_serializing)]
+    raw_packet: RawPacket,
+}
+
+impl ManagementFrame for DisassociationFrame {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn get_antenna_signal(&self) -> String {
+        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+    }
+
+    fn get_essid(&self) -> String {
+        String::from("NOT PROVIDED")
+    }
+
+    fn get_bssid(&self) -> String {
+        // get the bytes at offset 34 to 39 which are the bssid bytes
+        let bssid: &[u8] = &self.raw_packet.packet_data[34..39];
+        let mut bssid_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in bssid.iter().enumerate() {
+            bssid_vec.push(format!("{:02X}", value));
+            if counter != bssid.len() - 1 {
+                bssid_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(bssid_vec.into_iter())
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("Antenna Signal: -{} dBm", self.get_antenna_signal());
+        println!("ESSID: {}", self.get_essid());
+        println!("BSSID: {}", self.get_bssid());
+        println!("Source Address: {}", self.get_source_address());
+        println!("Destination Address: {}", self.get_destination_address());
+        println!("\n");
+    }
+}
+
+impl DisassociationFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
+        DisassociationFrame {
             raw_packet: raw_packet.to_owned(),
         }
     }
