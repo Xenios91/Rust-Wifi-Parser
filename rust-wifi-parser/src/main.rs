@@ -114,6 +114,8 @@ fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFr
         management_frame = Some(Box::new(AssociationResponseFrame::new(raw_packet)));
     } else if raw_packet.packet_data[18] == 0xa0 {
         management_frame = Some(Box::new(DisassociationFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0x20 {
+        management_frame = Some(Box::new(ReassociationFrame::new(raw_packet)));
     }
     management_frame
 }
@@ -349,7 +351,7 @@ impl ManagementFrame for AuthenticationFrame {
     }
 
     fn get_antenna_signal(&self) -> String {
-        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+        self.raw_packet.packet_data[14].wrapping_neg().to_string()
     }
 
     fn get_essid(&self) -> String {
@@ -424,7 +426,7 @@ impl ManagementFrame for DeauthenticationFrame {
     }
 
     fn get_antenna_signal(&self) -> String {
-        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+        self.raw_packet.packet_data[14].wrapping_neg().to_string()
     }
 
     fn get_essid(&self) -> String {
@@ -499,7 +501,7 @@ impl ManagementFrame for DisassociationFrame {
     }
 
     fn get_antenna_signal(&self) -> String {
-        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+        self.raw_packet.packet_data[14].wrapping_neg().to_string()
     }
 
     fn get_essid(&self) -> String {
@@ -533,6 +535,81 @@ impl ManagementFrame for DisassociationFrame {
 impl DisassociationFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         DisassociationFrame {
+            raw_packet: raw_packet.to_owned(),
+        }
+    }
+
+    fn get_destination_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[22..27];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+
+    fn get_source_address(&self) -> String {
+        let address = &self.raw_packet.packet_data[28..33];
+        let mut address_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in address.iter().enumerate() {
+            address_vec.push(format!("{:02X}", value));
+            if counter != address.len() - 1 {
+                address_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(address_vec.into_iter())
+    }
+}
+
+#[derive(Serialize)]
+struct ReassociationFrame {
+    #[serde(skip_serializing)]
+    raw_packet: RawPacket,
+}
+
+impl ManagementFrame for ReassociationFrame {
+    fn get_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    fn get_antenna_signal(&self) -> String {
+        self.raw_packet.packet_data[14].wrapping_neg().to_string()
+    }
+
+    fn get_essid(&self) -> String {
+        String::from("NOT PROVIDED")
+    }
+
+    fn get_bssid(&self) -> String {
+        // get the bytes at offset 34 to 39 which are the bssid bytes
+        let bssid: &[u8] = &self.raw_packet.packet_data[34..39];
+        let mut bssid_vec: Vec<String> = Vec::<String>::new();
+        for (counter, value) in bssid.iter().enumerate() {
+            bssid_vec.push(format!("{:02X}", value));
+            if counter != bssid.len() - 1 {
+                bssid_vec.push(":".to_string());
+            }
+        }
+        String::from_iter(bssid_vec.into_iter())
+    }
+
+    fn display_packet_info(&self) {
+        println!("Time Stamp: {}", self.raw_packet.get_timestamp());
+        println!("Antenna Signal: -{} dBm", self.get_antenna_signal());
+        println!("ESSID: {}", self.get_essid());
+        println!("BSSID: {}", self.get_bssid());
+        println!("Source Address: {}", self.get_source_address());
+        println!("Destination Address: {}", self.get_destination_address());
+        println!("\n");
+    }
+}
+
+impl ReassociationFrame {
+    fn new(raw_packet: &RawPacket) -> Self {
+        ReassociationFrame {
             raw_packet: raw_packet.to_owned(),
         }
     }
