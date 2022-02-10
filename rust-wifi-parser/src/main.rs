@@ -420,7 +420,7 @@ impl ManagementFrame for BeaconProbeFrame {
     }
 
     fn get_antenna_signal(&self) -> String {
-        self.raw_packet.packet_data[18].wrapping_neg().to_string()
+        self.raw_packet.packet_data[14].wrapping_neg().to_string()
     }
 
     fn get_essid(&self) -> String {
