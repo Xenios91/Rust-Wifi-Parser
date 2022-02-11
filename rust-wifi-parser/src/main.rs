@@ -895,8 +895,14 @@ impl RawPacket {
 fn send_management_frame_to_log(management_frame: Box<dyn ManagementFrame>, greylog_url: &str) {
     let json: String = management_frame.get_json();
     let client: Client = reqwest::blocking::Client::new();
-    let result: Result<Response, Error> = client.post(greylog_url).json(&json).send();
-    if result.is_err() {
-        println!("{}", result.err().unwrap());
+    let result: Result<Response, Error> = client
+        .post(greylog_url)
+        .body(json)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .send();
+
+    match result {
+        Ok(_) => (),
+        Err(e) => println!("ERROR: [{}]", e),
     }
 }
