@@ -174,6 +174,7 @@ trait ManagementFrame {
 struct AssociationResponseFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -202,6 +203,7 @@ impl AssociationResponseFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         AssociationResponseFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("AssociationResponse"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: AssociationResponseFrame::get_antenna_signal(raw_packet),
             essid: String::from("NOT PROVIDED"),
@@ -255,6 +257,7 @@ impl AssociationResponseFrame {
 struct AssociationRequestFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -283,6 +286,7 @@ impl AssociationRequestFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         AssociationRequestFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("AssociationRequest"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: AssociationRequestFrame::get_antenna_signal(raw_packet),
             essid: AssociationRequestFrame::get_essid(raw_packet),
@@ -359,6 +363,7 @@ impl AssociationRequestFrame {
 struct AuthenticationFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -387,6 +392,7 @@ impl AuthenticationFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         AuthenticationFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("Authentication"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: AuthenticationFrame::get_antenna_signal(raw_packet),
             essid: String::from("NOT PROVIDED"),
@@ -442,6 +448,7 @@ impl AuthenticationFrame {
 struct DeauthenticationFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -470,6 +477,7 @@ impl DeauthenticationFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         DeauthenticationFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("Deauthentication"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: DeauthenticationFrame::get_antenna_signal(raw_packet),
             essid: String::from("NOT PROVIDED"),
@@ -525,6 +533,7 @@ impl DeauthenticationFrame {
 struct DisassociationFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -553,6 +562,7 @@ impl DisassociationFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         DisassociationFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("Disassociation"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: DisassociationFrame::get_antenna_signal(raw_packet),
             essid: String::from("NOT PROVIDED"),
@@ -608,6 +618,7 @@ impl DisassociationFrame {
 struct ReassociationFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -636,6 +647,7 @@ impl ReassociationFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         ReassociationFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("Reassociation"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: ReassociationFrame::get_antenna_signal(raw_packet),
             essid: String::from("NOT PROVIDED"),
@@ -691,6 +703,7 @@ impl ReassociationFrame {
 struct BeaconProbeFrame {
     #[serde(skip_serializing)]
     raw_packet: RawPacket,
+    short_message: String,
     time_stamp: String,
     antenna_signal: String,
     essid: String,
@@ -725,6 +738,7 @@ impl BeaconProbeFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         BeaconProbeFrame {
             raw_packet: raw_packet.to_owned(),
+            short_message: String::from("Beacon"),
             time_stamp: raw_packet.get_timestamp(),
             antenna_signal: BeaconProbeFrame::get_antenna_signal(raw_packet),
             essid: BeaconProbeFrame::get_essid(raw_packet),
