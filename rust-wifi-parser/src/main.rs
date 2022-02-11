@@ -68,6 +68,7 @@ fn main() {
             .open()
             .unwrap();
 
+        // iterate over all packets captured
         while let Ok(packet) = cap.next() {
             let raw_packet: RawPacket = RawPacket::load_packet(packet);
             let management_frame: Option<Box<dyn ManagementFrame>> =
@@ -98,6 +99,8 @@ fn main() {
     }
 }
 
+// determine frame type by checking the 18th element in the array which indicates the subtype of the management frame
+// and return that frame struct (using polymorphism 'traits')
 fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFrame>> {
     let mut management_frame: Option<Box<dyn ManagementFrame>> = None;
 
@@ -901,8 +904,13 @@ fn send_management_frame_to_log(management_frame: Box<dyn ManagementFrame>, grey
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .send();
 
+    // for graylog we want a status code 202 per documentation
     match result {
-        Ok(_) => (),
+        Ok(r) => {
+            if r.status().as_u16() != 202 {
+                println!("GRAYLOG ERROR [STATUS CODE: {}]", r.status())
+            }
+        }
         Err(e) => println!("ERROR: [{}]", e),
     }
 }
