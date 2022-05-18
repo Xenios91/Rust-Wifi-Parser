@@ -3,17 +3,17 @@ use pcap_file::pcap::{Packet, PacketHeader};
 #[derive(Clone)]
 pub struct RawPacket {
     packet_header: PacketHeader,
-    packet_data: Vec<u8>,
+    pub packet_data: Vec<u8>,
 }
 
 impl RawPacket {
-    fn get_timestamp(&self) -> String {
+    pub fn get_timestamp(&self) -> String {
         // built in method to just get the timestamp
         self.packet_header.timestamp().as_millis().to_string()
     }
 
     // supply a tag id and returns the offset to that tag
-    fn get_tag_offset(&self, target_tag: u8) -> usize {
+    pub fn get_tag_offset(&self, target_tag: u8) -> usize {
         let tag_start: usize = 54;
         let mut current_offset: usize = tag_start;
         let mut current_tag: u8 = 0;

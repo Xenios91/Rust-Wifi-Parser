@@ -36,6 +36,30 @@ impl ManagementFrame for AssociationResponseFrame {
     }
 }
 
+// determine frame type by checking the 18th element in the array which indicates the subtype of the management frame
+// and return that frame struct (using polymorphism 'traits')
+pub fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFrame>> {
+    let mut management_frame: Option<Box<dyn ManagementFrame>> = None;
+
+    // check for hex value indicating management frame type
+    if raw_packet.packet_data[18] == 0x80 {
+        management_frame = Some(Box::new(BeaconProbeFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0xb0 {
+        management_frame = Some(Box::new(AuthenticationFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0xc0 {
+        management_frame = Some(Box::new(DeauthenticationFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0x0 {
+        management_frame = Some(Box::new(AssociationRequestFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0x10 {
+        management_frame = Some(Box::new(AssociationResponseFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0xa0 {
+        management_frame = Some(Box::new(DisassociationFrame::new(raw_packet)));
+    } else if raw_packet.packet_data[18] == 0x20 {
+        management_frame = Some(Box::new(ReassociationFrame::new(raw_packet)));
+    }
+    management_frame
+}
+
 impl AssociationResponseFrame {
     fn new(raw_packet: &RawPacket) -> Self {
         AssociationResponseFrame {

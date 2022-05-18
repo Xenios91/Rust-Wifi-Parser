@@ -1,23 +1,22 @@
 // Corey Hartman //
 /* Rust library does not do the heavy lifting so we do a lot of offset hunting
 Ive never done this much in depth parsing of a pcap so this was fun and a good learning experience */
-mod Packets;
+mod packets;
+mod monitor_service;
 use pcap::{Capture, Device};
 use pcap_file::pcap::PcapReader;
-use reqwest::blocking::{Client, Response};
-use reqwest::Error;
 use std::path::Path;
 use std::{env, fs::File, process::exit};
-use Packets::management_packets::{
-    AssociationRequestFrame, AssociationResponseFrame, AuthenticationFrame, BeaconProbeFrame,
-    DeauthenticationFrame, DisassociationFrame, ReassociationFrame,
-};
-use Packets::packet_bundle::Packets as PacketBundle;
 
-use crate::Packets::management_packets::ManagementFrame;
-use crate::Packets::raw_packet::RawPacket;
+use packets::packet_bundle::Packets as PacketBundle;
+use crate::packets::management_packets::{ManagementFrame};
+use crate::packets::raw_packet::RawPacket;
+use crate::packets::{management_packets};
+use crate::monitor_service::{graylog, monitor_service::send_to_monitor};
 
 fn main() {
+    let monitor_url: String = String::from("http://192.168.2.28:9001");
+
     // get cli args
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -79,13 +78,16 @@ fn main() {
         while let Ok(packet) = cap.next() {
             let raw_packet: RawPacket = RawPacket::load_packet(packet);
             let management_frame: Option<Box<dyn ManagementFrame>> =
-                build_management_frame(&raw_packet);
+                management_packets::build_management_frame(&raw_packet);
 
             if let Some(unwrapped_management_frame) = management_frame {
                 unwrapped_management_frame.display_packet_info();
 
                 if !greylog_url.is_empty() {
-                    send_management_frame_to_log(unwrapped_management_frame, greylog_url);
+                    graylog::send_management_frame_to_log(&unwrapped_management_frame, greylog_url);
+                }
+                if !monitor_url.is_empty(){
+                    send_to_monitor(unwrapped_management_frame, &monitor_url)
                 }
             }
         }
@@ -106,29 +108,7 @@ fn main() {
     }
 }
 
-// determine frame type by checking the 18th element in the array which indicates the subtype of the management frame
-// and return that frame struct (using polymorphism 'traits')
-fn build_management_frame(raw_packet: &RawPacket) -> Option<Box<dyn ManagementFrame>> {
-    let mut management_frame: Option<Box<dyn ManagementFrame>> = None;
 
-    // check for hex value indicating management frame type
-    if raw_packet.packet_data[18] == 0x80 {
-        management_frame = Some(Box::new(BeaconProbeFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0xb0 {
-        management_frame = Some(Box::new(AuthenticationFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0xc0 {
-        management_frame = Some(Box::new(DeauthenticationFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0x0 {
-        management_frame = Some(Box::new(AssociationRequestFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0x10 {
-        management_frame = Some(Box::new(AssociationResponseFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0xa0 {
-        management_frame = Some(Box::new(DisassociationFrame::new(raw_packet)));
-    } else if raw_packet.packet_data[18] == 0x20 {
-        management_frame = Some(Box::new(ReassociationFrame::new(raw_packet)));
-    }
-    management_frame
-}
 
 // just load the pcap and return the reader to the stream
 fn load_pcap(file_name: &str) -> PcapReader<File> {
@@ -136,24 +116,4 @@ fn load_pcap(file_name: &str) -> PcapReader<File> {
     PcapReader::new(file_in).unwrap()
 }
 
-// converts the management frame into a json and sends it to the provided url.
-// if an error occurs we print it to stdout.
-fn send_management_frame_to_log(management_frame: Box<dyn ManagementFrame>, greylog_url: &str) {
-    let json: String = management_frame.get_json();
-    let client: Client = reqwest::blocking::Client::new();
-    let result: Result<Response, Error> = client
-        .post(greylog_url)
-        .body(json)
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .send();
 
-    // for graylog we want a status code 202 per documentation
-    match result {
-        Ok(r) => {
-            if r.status().as_u16() != 202 {
-                println!("GRAYLOG ERROR [STATUS CODE: {}]", r.status())
-            }
-        }
-        Err(e) => println!("ERROR: [{}]", e),
-    }
-}
